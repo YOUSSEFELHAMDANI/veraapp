@@ -67,19 +67,49 @@ jobs:
           echo "Using profile: $PROFILE"
           security cms -D -i "$PROFILE" > /tmp/profile.plist
           TEAM_ID=$(/usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" /tmp/profile.plist)
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" /tmp/profile.plist)
           echo "TEAM_ID=$TEAM_ID"
-          sed -i '' "s|CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;|CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;\n\t\t\t\tDEVELOPMENT_TEAM = $TEAM_ID;|g" ios/Runner.xcodeproj/project.pbxproj
-          echo "Injected. Count:"
-          grep -c "DEVELOPMENT_TEAM" ios/Runner.xcodeproj/project.pbxproj
+          echo "PROFILE_NAME=$PROFILE_NAME"
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp /tmp/match_profiles/*.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          echo "Profiles installed:"
+          ls ~/Library/MobileDevice/Provisioning\ Profiles/
+          sed -i '' "s|CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;|CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;\n\t\t\t\tDEVELOPMENT_TEAM = $TEAM_ID;\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = \"$PROFILE_NAME\";|g" ios/Runner.xcodeproj/project.pbxproj
+          sed -i '' "s|CODE_SIGN_STYLE = Automatic;|CODE_SIGN_STYLE = Manual;|g" ios/Runner.xcodeproj/project.pbxproj
+          echo "CODE_SIGN_STYLE count:"
+          grep -c "CODE_SIGN_STYLE" ios/Runner.xcodeproj/project.pbxproj
+
+      - name: Write export options plist
+        run: |
+          TEAM_ID=$(/usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" /tmp/profile.plist)
+          cat > /tmp/export_options.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>app-store</string>
+              <key>teamID</key>
+              <string>$TEAM_ID</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>signingCertificate</key>
+              <string>Apple Distribution</string>
+          </dict>
+          </plist>
+          EOF
+          echo "export options written"
 
       - name: Build IPA
-        run: flutter build ipa --release --build-name=1.0.2 --build-number=3 --export-method app-store
+        run: flutter build ipa --release --build-name=1.0.2 --build-number=3 --export-method app-store --export-options-plist=/tmp/export_options.plist
 
       - name: Upload to TestFlight
         run: |
+          IPA=$(ls build/ios/ipa/*.ipa | head -1)
+          echo "IPA=$IPA"
           fastlane pilot upload \
             --api_key_path /tmp/asc_key.json \
-            --ipa build/ios/ipa/vera.ipa \
+            --ipa "$IPA" \
             --skip_waiting_for_build_processing true
 
       - name: Upload IPA artifact
