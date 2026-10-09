@@ -80,6 +80,13 @@ jobs:
           echo "DEVELOPMENT_TEAM count:"
           grep -c "DEVELOPMENT_TEAM" ios/Runner.xcodeproj/project.pbxproj
 
+      - name: Unlock keychain for codesigning
+        run: |
+          security unlock-keychain -p '' ~/Library/Keychains/login.keychain-db || true
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k '' ~/Library/Keychains/login.keychain-db || true
+          security default-keychain -s ~/Library/Keychains/login.keychain-db || true
+          echo "keychain unlocked"
+
       - name: Write export options plist
         run: |
           TEAM_ID=$(/usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" /tmp/profile.plist)
@@ -111,14 +118,14 @@ jobs:
         run: flutter build ipa --release --build-name=1.0.2 --build-number=3 --no-codesign
 
       - name: Sign and export IPA
+        timeout-minutes: 15
         run: |
           ARCHIVE=$(find build/ios/archive -maxdepth 1 -name '*.xcarchive' | head -1)
           echo "ARCHIVE=$ARCHIVE"
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE" \
             -exportOptionsPlist /tmp/export_options.plist \
-            -exportPath build/ios/ipa \
-            -allowProvisioningUpdates
+            -exportPath build/ios/ipa
           echo "Exported files:"
           ls -la build/ios/ipa/
 
