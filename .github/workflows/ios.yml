@@ -58,7 +58,7 @@ jobs:
             --api_key_path /tmp/asc_key.json \
             --app_identifier app.veraapp.com \
             --type appstore \
-            --output_directory /tmp/match_profiles \
+            --output-path /tmp/match_profiles \
             --force
 
       - name: Inject DEVELOPMENT_TEAM into pbxproj
