@@ -6,15 +6,12 @@ workflows:
 
     environment:
       groups:
-        # أنشئ هذه المجموعة في Codemagic:
-        #   App Store > Teams and billing > ... > Environment variables
-        #   أو من تبويب "Sign in" > App Store Connect API key:
-        #   - APP_STORE_CONNECT_KEY_IDENTIFIER   (Key ID من Apple)
-        #   - APP_STORE_CONNECT_ISSUER_ID        (Issuer ID من Apple)
-        #   - APP_STORE_CONNECT_KEY_FILE_CONTENT (محتوى ملف .p8 نصياً)
-        #   - APPLE_ID_EMAIL                     (بريد حسابك في App Store Connect)
-        #   - APPLE_ID_PASSWORD                  (App-Specific Password، وليس كلمة مرور حسابك)
-        #   ملاحظة: بناءً على طريقة إدخالك للمفتاح قد تختلف أسماء المتغيرات.
+        # أنشئ المتغيرات التالية في Codemagic تحت Project → Environment variables
+        # (لو وُضعت عبر تبويب Integrations ستظهر تلقائياً):
+        #   - APP_STORE_CONNECT_ISSUER_ID    (= Issuer ID من App Store Connect)
+        #   - APP_STORE_CONNECT_KEY_IDENTIFIER (= Key ID)
+        #   - APP_STORE_CONNECT_KEY_FILE_CONTENT (= محتوى ملف .p8 نصياً)
+        #   - GOOGLE_SERVICES_INFO_BASE64    (اختياري: محتوى GoogleService-Info.plist base64)
         - vera_apple
 
       ios_signing:
@@ -56,6 +53,7 @@ workflows:
           success: true
           failure: true
       app_store_connect:
-        apple_id: $APPLE_ID_EMAIL
-        password: $APPLE_ID_PASSWORD
-        # تُحمّل للتطبيق رقم 46b5b429-0f70-4dcd-a1d5-66806264ba30 (VERA)
+        submit_to_testflight: true
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        private_key: $APP_STORE_CONNECT_KEY_FILE_CONTENT
