@@ -38,14 +38,10 @@ jobs:
       - name: Install Fastlane
         run: sudo gem install fastlane -N
 
-      - name: Write App Store Connect API key
-        run: printf '%s\n' "${{ secrets.APP_STORE_CONNECT_API_KEY }}" > /tmp/asc_key.p8
-
       - name: Match (certificates + provisioning)
         run: |
           git config --global url."https://x-access-token:${{ secrets.MATCH_GIT_TOKEN }}@github.com/".insteadOf "https://github.com/"
           fastlane match appstore \
-            --api_key_path /tmp/asc_key.p8 \
             --app_identifier com.veraapp.app \
             --type appstore \
             --force
@@ -65,7 +61,6 @@ jobs:
       - name: Upload to TestFlight
         run: |
           fastlane pilot upload \
-            --api_key_path /tmp/asc_key.p8 \
             --ipa build/ios/ipa/vera.ipa \
             --skip_waiting_for_build_processing true
 
