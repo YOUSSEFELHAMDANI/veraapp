@@ -56,7 +56,7 @@ jobs:
           git config --global url."https://x-access-token:${{ secrets.MATCH_GIT_TOKEN }}@github.com/".insteadOf "https://github.com/"
           fastlane match appstore \
             --api_key_path /tmp/asc_key.json \
-            --app_identifier com.veraapp.app \
+            --app_identifier app.veraapp.com \
             --type appstore \
             --force
 
