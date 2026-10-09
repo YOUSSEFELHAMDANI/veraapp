@@ -63,29 +63,28 @@ jobs:
       - name: Inject DEVELOPMENT_TEAM into pbxproj
         run: |
           python3 - <<'EOF'
-          import json, jwt, time, urllib.request
+          import json
           with open('/tmp/asc_key.json') as f:
               cfg = json.load(f)
-          headers = {
-              "alg": "ES256", "kid": cfg["key_id"], "typ": "JWT",
-          }
-          claims = {
-              "iss": cfg["issuer_id"],
-              "iat": int(time.time()),
-              "exp": int(time.time()) + 900,
-              "aud": "appstoreconnect-v1",
-          }
-          token = jwt.encode(claims, cfg["key"], algorithm="ES256", headers=headers)
-          req = urllib.request.Request(
-              "https://api.appstoreconnect.apple.com/v1/bundleIds?filter[identifier]=app.veraapp.com",
-              headers={"Authorization": f"Bearer {token}"})
-          data = json.load(urllib.request.urlopen(req))
-          team_id = data["data"][0]["attributes"]["seedId"]
-          print(f"TEAM_ID={team_id}")
-          with open('/tmp/TEAM_ID', 'w') as f:
-              f.write(team_id)
+          # extract key PEM for openssl
+          with open('/tmp/asc_key.pem', 'w') as f:
+              f.write(cfg["key"])
+          print("pem written")
           EOF
-          TEAM_ID=$(cat /tmp/TEAM_ID)
+          ISSUER_ID="${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}"
+          KEY_ID="${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}"
+          NOW=$(date +%s)
+          EXP=$((NOW + 900))
+          HEADER=$(printf '{"alg":"ES256","kid":"%s","typ":"JWT"}' "$KEY_ID" | openssl base64 -A | tr '+/' '-_' | tr -d '=')
+          PAYLOAD=$(printf '{"iss":"%s","iat":%s,"exp":%s,"aud":"appstoreconnect-v1"}' "$ISSUER_ID" "$NOW" "$EXP" | openssl base64 -A | tr '+/' '-_' | tr -d '=')
+          SIGNING_INPUT="$HEADER.$PAYLOAD"
+          SIG=$(printf '%s' "$SIGNING_INPUT" | openssl dgst -sha256 -sign /tmp/asc_key.pem -binary | openssl base64 -A | tr '+/' '-_' | tr -d '=')
+          TOKEN="$SIGNING_INPUT.$SIG"
+          TEAM_ID=$(curl -sG -H "Authorization: Bearer $TOKEN" \
+            --data-urlencode 'filter[identifier]=app.veraapp.com' \
+            https://api.appstoreconnect.apple.com/v1/bundleIds \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['data'][0]['attributes']['seedId'])")
+          echo "TEAM_ID=$TEAM_ID"
           sed -i '' "s|CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;|CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;\n\t\t\t\tDEVELOPMENT_TEAM = $TEAM_ID;|g" ios/Runner.xcodeproj/project.pbxproj
           echo "Injected. Count:"
           grep -c "DEVELOPMENT_TEAM" ios/Runner.xcodeproj/project.pbxproj
