@@ -1,0 +1,78 @@
+name: iOS Build & TestFlight
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build IPA and upload to TestFlight
+    runs-on: macos-latest
+
+    env:
+      MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+      MATCH_GIT_URL: ${{ secrets.MATCH_GIT_REPO }}
+      FASTLANE_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+      FASTLANE_USER: multiinnovation.ma@gmail.com
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Restore GoogleService-Info.plist
+        run: |
+          if [ "${{ secrets.GOOGLE_SERVICES_INFO_BASE64 }}" = "__PENDING__" ] || [ -z "${{ secrets.GOOGLE_SERVICES_INFO_BASE64 }}" ]; then
+            echo "::error::GOOGLE_SERVICES_INFO_BASE64 is not set. Download GoogleService-Info.plist from Firebase and set this secret (base64)."
+            exit 1
+          fi
+          echo "${{ secrets.GOOGLE_SERVICES_INFO_BASE64 }}" | base64 --decode > ios/Runner/GoogleService-Info.plist
+          echo "GoogleService-Info.plist restored"
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Install Fastlane
+        run: sudo gem install fastlane -N
+
+      - name: Write App Store Connect API key
+        run: printf '%s\n' "${{ secrets.APP_STORE_CONNECT_API_KEY }}" > /tmp/asc_key.p8
+
+      - name: Match (certificates + provisioning)
+        run: |
+          fastlane match appstore \
+            --api_key_path /tmp/asc_key.p8 \
+            --app_identifier com.veraapp.app \
+            --type appstore \
+            --clone_branch_directly true \
+            --force
+
+      - name: Inject DEVELOPMENT_TEAM into pbxproj
+        run: |
+          PROFILE=$(find ~/Library/MobileDevice/Provisioning\ Profiles -name '*.mobileprovision' | head -1)
+          security cms -D -i "$PROFILE" > /tmp/profile.plist
+          TEAM_ID=$(/usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" /tmp/profile.plist)
+          echo "TEAM_ID=$TEAM_ID"
+          sed -i '' "s|CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;|CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;\n\t\t\t\tDEVELOPMENT_TEAM = $TEAM_ID;|g" ios/Runner.xcodeproj/project.pbxproj
+          grep -c "DEVELOPMENT_TEAM" ios/Runner.xcodeproj/project.pbxproj
+
+      - name: Build IPA
+        run: flutter build ipa --release --build-name=1.0.2 --build-number=3 --export-method app-store
+
+      - name: Upload to TestFlight
+        run: |
+          fastlane pilot upload \
+            --api_key_path /tmp/asc_key.p8 \
+            --ipa build/ios/ipa/vera.ipa \
+            --skip_waiting_for_build_processing true
+
+      - name: Upload IPA artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vera-ipa
+          path: build/ios/ipa/
+          if-no-files-found: ignore
