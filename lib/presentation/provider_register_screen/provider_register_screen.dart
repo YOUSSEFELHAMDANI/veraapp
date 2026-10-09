@@ -44,6 +44,8 @@ class _ProviderRegisterScreenState extends State<ProviderRegisterScreen> {
 
   static const String _webClientId = String.fromEnvironment(
     'GOOGLE_WEB_CLIENT_ID',
+    defaultValue:
+        '866406669480-he67gobkucf05lm3motos62phamj2g8i.apps.googleusercontent.com',
   );
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
@@ -176,17 +178,9 @@ class _ProviderRegisterScreenState extends State<ProviderRegisterScreen> {
       }
 
       final GoogleSignInAuthentication auth = await account.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: auth.accessToken,
-        idToken: auth.idToken,
-      );
+      final googleIdToken = auth.idToken;
 
-      final userCredential =
-          await FirebaseAuth.instance.signInWithCredential(credential);
-      final firebaseToken = await userCredential.user?.getIdToken();
-
-      if (firebaseToken == null || firebaseToken.isEmpty) {
-        await FirebaseAuth.instance.signOut();
+      if (googleIdToken == null || googleIdToken.isEmpty) {
         await _googleSignIn.signOut();
         if (mounted) {
           setState(() {
@@ -197,8 +191,14 @@ class _ProviderRegisterScreenState extends State<ProviderRegisterScreen> {
         return;
       }
 
+      final credential = GoogleAuthProvider.credential(
+        accessToken: auth.accessToken,
+        idToken: auth.idToken,
+      );
+      await FirebaseAuth.instance.signInWithCredential(credential);
+
       final result = await VeraApiService.instance.loginWithGoogle(
-        idToken: firebaseToken,
+        idToken: googleIdToken,
         role: 'provider',
       );
       if (!mounted) return;

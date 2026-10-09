@@ -37,6 +37,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   static const String _webClientId = String.fromEnvironment(
     'GOOGLE_WEB_CLIENT_ID',
+    defaultValue:
+        '866406669480-he67gobkucf05lm3motos62phamj2g8i.apps.googleusercontent.com',
   );
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(

@@ -142,7 +142,7 @@ jobs:
           "
 
       - name: Archive (no codesign)
-        run: flutter build ipa --release --build-name=1.0 --build-number=7 --no-codesign
+        run: flutter build ipa --release --build-name=1.0 --build-number=8 --no-codesign --dart-define=GOOGLE_WEB_CLIENT_ID=866406669480-he67gobkucf05lm3motos62phamj2g8i.apps.googleusercontent.com
 
       - name: Embed entitlements (Sign in with Apple / Push)
         run: |
