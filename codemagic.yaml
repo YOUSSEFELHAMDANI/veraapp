@@ -7,10 +7,10 @@ workflows:
     environment:
       groups:
         # أنشئ المتغيرات التالية في Codemagic تحت Project → Environment variables
-        # (لو وُضعت عبر تبويب Integrations ستظهر تلقائياً):
-        #   - APP_STORE_CONNECT_ISSUER_ID    (= Issuer ID من App Store Connect)
+        # (نفس تسمية الدليل الرسمي):
+        #   - APP_STORE_CONNECT_ISSUER_ID     (= Issuer ID من App Store Connect)
         #   - APP_STORE_CONNECT_KEY_IDENTIFIER (= Key ID)
-        #   - APP_STORE_CONNECT_KEY_FILE_CONTENT (= محتوى ملف .p8 نصياً)
+        #   - APP_STORE_CONNECT_PRIVATE_KEY   (= محتوى ملف .p8 نصياً — متغير سري)
         #   - GOOGLE_SERVICES_INFO_BASE64    (اختياري: محتوى GoogleService-Info.plist base64)
         - vera_apple
 
@@ -53,7 +53,7 @@ workflows:
           success: true
           failure: true
       app_store_connect:
-        submit_to_testflight: true
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
-        private_key: $APP_STORE_CONNECT_KEY_FILE_CONTENT
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: true
