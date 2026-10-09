@@ -1,0 +1,61 @@
+workflows:
+  ios-testflight:
+    name: VERA iOS Build (TestFlight)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    environment:
+      groups:
+        # أنشئ هذه المجموعة في Codemagic:
+        #   App Store > Teams and billing > ... > Environment variables
+        #   أو من تبويب "Sign in" > App Store Connect API key:
+        #   - APP_STORE_CONNECT_KEY_IDENTIFIER   (Key ID من Apple)
+        #   - APP_STORE_CONNECT_ISSUER_ID        (Issuer ID من Apple)
+        #   - APP_STORE_CONNECT_KEY_FILE_CONTENT (محتوى ملف .p8 نصياً)
+        #   - APPLE_ID_EMAIL                     (بريد حسابك في App Store Connect)
+        #   - APPLE_ID_PASSWORD                  (App-Specific Password، وليس كلمة مرور حسابك)
+        #   ملاحظة: بناءً على طريقة إدخالك للمفتاح قد تختلف أسماء المتغيرات.
+        - vera_apple
+
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.veraapp.app
+
+    scripts:
+      - name: Install Flutter dependencies
+        script: |
+          flutter pub get
+
+      - name: Add GoogleService-Info.plist (إذا لم يكن مرفوعاً في المستودع)
+        script: |
+          if [ -n "$GOOGLE_SERVICES_INFO_BASE64" ]; then
+            echo "$GOOGLE_SERVICES_INFO_BASE64" | base64 --decode \
+              > "$CM_BUILD_DIR/ios/Runner/GoogleService-Info.plist"
+            echo "GoogleService-Info.plist restored from env"
+          elif [ -f "$CM_BUILD_DIR/ios/Runner/GoogleService-Info.plist" ]; then
+            echo "GoogleService-Info.plist already present"
+          else
+            echo "WARNING: GoogleService-Info.plist NOT FOUND"
+          fi
+
+      - name: Build IPA (release)
+        script: |
+          flutter build ipa --release \
+            --build-name=1.0.2 \
+            --build-number=3
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - build/ios/ipa/*.app.dSYM.zip
+
+    publishing:
+      email:
+        recipients:
+          - noreply@veraapp.app
+        notify:
+          success: true
+          failure: true
+      app_store_connect:
+        apple_id: $APPLE_ID_EMAIL
+        password: $APPLE_ID_PASSWORD
+        # تُحمّل للتطبيق رقم 46b5b429-0f70-4dcd-a1d5-66806264ba30 (VERA)

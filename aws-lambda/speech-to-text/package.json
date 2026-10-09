@@ -1,0 +1,9 @@
+{
+  "name": "speech-to-text",
+  "version": "1.0.0",
+  "description": "AWS Lambda function for speech-to-text",
+  "main": "index.js",
+  "dependencies": {
+    "@rocketnew/llm-sdk": "1.1.0"
+  }
+}

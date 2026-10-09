@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "866406669480",
+    "project_id": "veraapp-2755b",
+    "storage_bucket": "veraapp-2755b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:866406669480:android:d39b26de93ec91b9f9769d",
+        "android_client_info": {
+          "package_name": "com.veraapp.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "866406669480-h2iqmc94650cnjc3tds4vl7f9df86hbc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.veraapp.app",
+            "certificate_hash": "4092f4de2d5ec74447179d9c05a225061e6da22e"
+          }
+        },
+        {
+          "client_id": "866406669480-he67gobkucf05lm3motos62phamj2g8i.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBbxrtllrHTjrwf4lOqUHhxVk1kXkpgEBM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "866406669480-he67gobkucf05lm3motos62phamj2g8i.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

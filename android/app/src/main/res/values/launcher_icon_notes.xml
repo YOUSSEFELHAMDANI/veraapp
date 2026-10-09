@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ic_launcher_foreground drawable is provided as:
+         - drawable/ic_launcher_foreground.png  (API < 24)
+         - drawable-v24/ic_launcher_foreground.xml (API 24+, VectorDrawable)
+         The adaptive icon XMLs reference @drawable/ic_launcher_foreground_vec
+         which is defined in drawable/ic_launcher_foreground_vec.xml
+    -->
+</resources>
