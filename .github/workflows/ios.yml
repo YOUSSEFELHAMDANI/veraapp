@@ -58,32 +58,15 @@ jobs:
             --api_key_path /tmp/asc_key.json \
             --app_identifier app.veraapp.com \
             --type appstore \
+            --output_directory /tmp/match_profiles \
             --force
 
       - name: Inject DEVELOPMENT_TEAM into pbxproj
         run: |
-          python3 - <<'EOF'
-          import json
-          with open('/tmp/asc_key.json') as f:
-              cfg = json.load(f)
-          # extract key PEM for openssl
-          with open('/tmp/asc_key.pem', 'w') as f:
-              f.write(cfg["key"])
-          print("pem written")
-          EOF
-          ISSUER_ID="${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}"
-          KEY_ID="${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}"
-          NOW=$(date +%s)
-          EXP=$((NOW + 900))
-          HEADER=$(printf '{"alg":"ES256","kid":"%s","typ":"JWT"}' "$KEY_ID" | openssl base64 -A | tr '+/' '-_' | tr -d '=')
-          PAYLOAD=$(printf '{"iss":"%s","iat":%s,"exp":%s,"aud":"appstoreconnect-v1"}' "$ISSUER_ID" "$NOW" "$EXP" | openssl base64 -A | tr '+/' '-_' | tr -d '=')
-          SIGNING_INPUT="$HEADER.$PAYLOAD"
-          SIG=$(printf '%s' "$SIGNING_INPUT" | openssl dgst -sha256 -sign /tmp/asc_key.pem -binary | openssl base64 -A | tr '+/' '-_' | tr -d '=')
-          TOKEN="$SIGNING_INPUT.$SIG"
-          TEAM_ID=$(curl -sG -H "Authorization: Bearer $TOKEN" \
-            --data-urlencode 'filter[identifier]=app.veraapp.com' \
-            https://api.appstoreconnect.apple.com/v1/bundleIds \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['data'][0]['attributes']['seedId'])")
+          PROFILE=$(find /tmp/match_profiles -name '*.mobileprovision' | head -1)
+          echo "Using profile: $PROFILE"
+          security cms -D -i "$PROFILE" > /tmp/profile.plist
+          TEAM_ID=$(/usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" /tmp/profile.plist)
           echo "TEAM_ID=$TEAM_ID"
           sed -i '' "s|CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;|CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;\n\t\t\t\tDEVELOPMENT_TEAM = $TEAM_ID;|g" ios/Runner.xcodeproj/project.pbxproj
           echo "Injected. Count:"
