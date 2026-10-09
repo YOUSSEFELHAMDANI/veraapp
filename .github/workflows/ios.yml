@@ -12,7 +12,9 @@ jobs:
       MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
       MATCH_GIT_URL: https://github.com/YOUSSEFELHAMDANI/veraapp-certs.git
       FASTLANE_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
-      FASTLANE_USER: multiinnovation.ma@gmail.com
+      APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
 
     steps:
       - name: Checkout
@@ -25,10 +27,6 @@ jobs:
 
       - name: Restore GoogleService-Info.plist
         run: |
-          if [ "${{ secrets.GOOGLE_SERVICES_INFO_BASE64 }}" = "__PENDING__" ] || [ -z "${{ secrets.GOOGLE_SERVICES_INFO_BASE64 }}" ]; then
-            echo "::error::GOOGLE_SERVICES_INFO_BASE64 is not set. Download GoogleService-Info.plist from Firebase and set this secret (base64)."
-            exit 1
-          fi
           echo "${{ secrets.GOOGLE_SERVICES_INFO_BASE64 }}" | base64 --decode > ios/Runner/GoogleService-Info.plist
           echo "GoogleService-Info.plist restored"
 
@@ -38,10 +36,26 @@ jobs:
       - name: Install Fastlane
         run: sudo gem install fastlane -N
 
+      - name: Write App Store Connect API key JSON
+        run: |
+          python3 -c "
+          import json, os
+          payload = {
+            'key_id': os.environ['APP_STORE_CONNECT_API_KEY_ID'],
+            'issuer_id': os.environ['APP_STORE_CONNECT_API_ISSUER_ID'],
+            'key': os.environ['APP_STORE_CONNECT_API_KEY'],
+            'in_house': False,
+          }
+          with open('/tmp/asc_key.json', 'w') as f:
+            json.dump(payload, f)
+          "
+          echo "asc_key.json written"
+
       - name: Match (certificates + provisioning)
         run: |
           git config --global url."https://x-access-token:${{ secrets.MATCH_GIT_TOKEN }}@github.com/".insteadOf "https://github.com/"
           fastlane match appstore \
+            --api_key_path /tmp/asc_key.json \
             --app_identifier com.veraapp.app \
             --type appstore \
             --force
@@ -61,6 +75,7 @@ jobs:
       - name: Upload to TestFlight
         run: |
           fastlane pilot upload \
+            --api_key_path /tmp/asc_key.json \
             --ipa build/ios/ipa/vera.ipa \
             --skip_waiting_for_build_processing true
 
