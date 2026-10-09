@@ -142,7 +142,7 @@ jobs:
           "
 
       - name: Archive (no codesign)
-        run: flutter build ipa --release --build-name=1.0 --build-number=5 --no-codesign
+        run: flutter build ipa --release --build-name=1.0 --build-number=6 --no-codesign
 
       - name: Sign and export IPA
         timeout-minutes: 15
