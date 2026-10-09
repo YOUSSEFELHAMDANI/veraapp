@@ -68,23 +68,22 @@ jobs:
           security cms -D -i "$PROFILE" > /tmp/profile.plist
           TEAM_ID=$(/usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" /tmp/profile.plist)
           PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" /tmp/profile.plist)
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" /tmp/profile.plist)
           echo "TEAM_ID=$TEAM_ID"
           echo "PROFILE_NAME=$PROFILE_NAME"
+          echo "PROFILE_UUID=$PROFILE_UUID"
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp /tmp/match_profiles/*.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
           echo "Profiles installed:"
           ls ~/Library/MobileDevice/Provisioning\ Profiles/
           sed -i '' "s|CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;|CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;\n\t\t\t\tDEVELOPMENT_TEAM = $TEAM_ID;\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = \"$PROFILE_NAME\";|g" ios/Runner.xcodeproj/project.pbxproj
-          sed -i '' "s|CODE_SIGN_STYLE = Automatic;|CODE_SIGN_STYLE = Manual;|g" ios/Runner.xcodeproj/project.pbxproj
-          sed -i '' 's|"CODE_SIGN_IDENTITY\[sdk=iphoneos\*\]" = "iPhone Developer";|"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";|g' ios/Runner.xcodeproj/project.pbxproj
-          echo "CODE_SIGN_STYLE count:"
-          grep -c "CODE_SIGN_STYLE" ios/Runner.xcodeproj/project.pbxproj
-          echo "CODE_SIGN_IDENTITY lines:"
-          grep "CODE_SIGN_IDENTITY" ios/Runner.xcodeproj/project.pbxproj
+          echo "DEVELOPMENT_TEAM count:"
+          grep -c "DEVELOPMENT_TEAM" ios/Runner.xcodeproj/project.pbxproj
 
       - name: Write export options plist
         run: |
           TEAM_ID=$(/usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" /tmp/profile.plist)
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" /tmp/profile.plist)
           cat > /tmp/export_options.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -98,13 +97,30 @@ jobs:
               <string>manual</string>
               <key>signingCertificate</key>
               <string>Apple Distribution</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>app.veraapp.com</key>
+                  <string>$PROFILE_NAME</string>
+              </dict>
           </dict>
           </plist>
           EOF
           echo "export options written"
 
-      - name: Build IPA
-        run: flutter build ipa --release --build-name=1.0.2 --build-number=3 --export-options-plist=/tmp/export_options.plist
+      - name: Archive (no codesign)
+        run: flutter build ipa --release --build-name=1.0.2 --build-number=3 --no-codesign
+
+      - name: Sign and export IPA
+        run: |
+          ARCHIVE=$(find build/ios/archive -maxdepth 1 -name '*.xcarchive' | head -1)
+          echo "ARCHIVE=$ARCHIVE"
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE" \
+            -exportOptionsPlist /tmp/export_options.plist \
+            -exportPath build/ios/ipa \
+            -allowProvisioningUpdates
+          echo "Exported files:"
+          ls -la build/ios/ipa/
 
       - name: Upload to TestFlight
         run: |
