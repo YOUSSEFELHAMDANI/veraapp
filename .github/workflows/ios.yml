@@ -12,7 +12,7 @@ jobs:
       MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
       MATCH_GIT_URL: https://github.com/YOUSSEFELHAMDANI/veraapp-certs.git
       FASTLANE_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
-      APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+      ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
       APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
       APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
 
@@ -43,7 +43,7 @@ jobs:
           payload = {
             'key_id': os.environ['APP_STORE_CONNECT_API_KEY_ID'],
             'issuer_id': os.environ['APP_STORE_CONNECT_API_ISSUER_ID'],
-            'key': os.environ['APP_STORE_CONNECT_API_KEY'],
+            'key': os.environ['ASC_API_KEY_CONTENT'],
             'in_house': False,
           }
           with open('/tmp/asc_key.json', 'w') as f:
