@@ -76,8 +76,11 @@ jobs:
           ls ~/Library/MobileDevice/Provisioning\ Profiles/
           sed -i '' "s|CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;|CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;\n\t\t\t\tDEVELOPMENT_TEAM = $TEAM_ID;\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = \"$PROFILE_NAME\";|g" ios/Runner.xcodeproj/project.pbxproj
           sed -i '' "s|CODE_SIGN_STYLE = Automatic;|CODE_SIGN_STYLE = Manual;|g" ios/Runner.xcodeproj/project.pbxproj
+          sed -i '' 's|"CODE_SIGN_IDENTITY\[sdk=iphoneos\*\]" = "iPhone Developer";|"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";|g' ios/Runner.xcodeproj/project.pbxproj
           echo "CODE_SIGN_STYLE count:"
           grep -c "CODE_SIGN_STYLE" ios/Runner.xcodeproj/project.pbxproj
+          echo "CODE_SIGN_IDENTITY lines:"
+          grep "CODE_SIGN_IDENTITY" ios/Runner.xcodeproj/project.pbxproj
 
       - name: Write export options plist
         run: |
