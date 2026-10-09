@@ -43,6 +43,7 @@ jobs:
 
       - name: Match (certificates + provisioning)
         run: |
+          git config --global url."https://x-access-token:${{ secrets.MATCH_GIT_TOKEN }}@github.com/".insteadOf "https://github.com/"
           fastlane match appstore \
             --api_key_path /tmp/asc_key.p8 \
             --app_identifier com.veraapp.app \
