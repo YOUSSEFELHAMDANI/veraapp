@@ -51,6 +51,15 @@ jobs:
           "
           echo "asc_key.json written"
 
+      - name: Create CI keychain
+        run: |
+          security create-keychain -p veraappci build.keychain || true
+          security set-keychain-settings -lut 21600 build.keychain
+          security unlock-keychain -p veraappci build.keychain
+          security list-keychains -d user -s build.keychain $(security list-keychains -d user | tr -d '"')
+          security default-keychain -s build.keychain
+          echo "keychain created"
+
       - name: Match (certificates + provisioning)
         run: |
           git config --global url."https://x-access-token:${{ secrets.MATCH_GIT_TOKEN }}@github.com/".insteadOf "https://github.com/"
@@ -58,6 +67,8 @@ jobs:
             --api_key_path /tmp/asc_key.json \
             --app_identifier app.veraapp.com \
             --type appstore \
+            --keychain_name build.keychain \
+            --keychain_password veraappci \
             --output-path /tmp/match_profiles \
             --force
 
@@ -82,9 +93,9 @@ jobs:
 
       - name: Unlock keychain for codesigning
         run: |
-          security unlock-keychain -p '' ~/Library/Keychains/login.keychain-db || true
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k '' ~/Library/Keychains/login.keychain-db || true
-          security default-keychain -s ~/Library/Keychains/login.keychain-db || true
+          security unlock-keychain -p veraappci build.keychain
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k veraappci build.keychain
+          security default-keychain -s build.keychain
           echo "keychain unlocked"
 
       - name: Write export options plist
