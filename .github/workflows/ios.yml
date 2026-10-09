@@ -125,8 +125,24 @@ jobs:
           EOF
           echo "export options written"
 
+      - name: Add GoogleService-Info.plist to Xcode project
+        run: |
+          ruby -e "
+          require 'xcodeproj'
+          proj = Xcodeproj::Project.open('ios/Runner.xcodeproj')
+          target = proj.targets.find { |t| t.name == 'Runner' }
+          group = proj.main_group.find_subpath('Runner', true)
+          ref = group.files.find { |f| f.display_name == 'GoogleService-Info.plist' }
+          ref ||= group.new_reference('GoogleService-Info.plist')
+          unless target.resources_build_phase.files_references.include?(ref)
+            target.resources_build_phase.add_file_reference(ref)
+          end
+          proj.save
+          puts 'GoogleService-Info.plist linked to Runner resources'
+          "
+
       - name: Archive (no codesign)
-        run: flutter build ipa --release --build-name=1.0 --build-number=4 --no-codesign
+        run: flutter build ipa --release --build-name=1.0 --build-number=5 --no-codesign
 
       - name: Sign and export IPA
         timeout-minutes: 15
