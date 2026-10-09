@@ -10,7 +10,7 @@ jobs:
 
     env:
       MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-      MATCH_GIT_URL: ${{ secrets.MATCH_GIT_REPO }}
+      MATCH_GIT_URL: https://github.com/YOUSSEFELHAMDANI/veraapp-certs.git
       FASTLANE_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
       FASTLANE_USER: multiinnovation.ma@gmail.com
 
@@ -47,7 +47,6 @@ jobs:
             --api_key_path /tmp/asc_key.p8 \
             --app_identifier com.veraapp.app \
             --type appstore \
-            --clone_branch_directly true \
             --force
 
       - name: Inject DEVELOPMENT_TEAM into pbxproj
