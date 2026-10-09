@@ -142,7 +142,24 @@ jobs:
           "
 
       - name: Archive (no codesign)
-        run: flutter build ipa --release --build-name=1.0 --build-number=6 --no-codesign
+        run: flutter build ipa --release --build-name=1.0 --build-number=7 --no-codesign
+
+      - name: Embed entitlements (Sign in with Apple / Push)
+        run: |
+          ARCHIVE=$(find build/ios/archive -maxdepth 1 -name '*.xcarchive' | head -1)
+          APP="$ARCHIVE/Products/Applications/Runner.app"
+          CERT=$(security find-identity -v -p codesigning build.keychain | awk '/Apple Distribution/ {print $2; exit}')
+          echo "CERT=$CERT"
+          echo "APP=$APP"
+          # flutter build --no-codesign leaves Runner.app unsigned, so Xcode's
+          # export step otherwise drops com.apple.developer.applesignin and
+          # aps-environment (Sign in with Apple then fails with error 1000).
+          # Sign the archived app with the explicit entitlements first so the
+          # App Store export preserves them.
+          codesign --force --sign "$CERT" --keychain build.keychain \
+            --entitlements ios/Runner/Runner.entitlements "$APP"
+          echo "Entitlements now embedded on archive app:"
+          codesign -d --entitlements :- "$APP" 2>&1 | head -40 || true
 
       - name: Sign and export IPA
         timeout-minutes: 15
