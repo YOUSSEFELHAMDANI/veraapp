@@ -411,7 +411,11 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen>
                 ElevatedButton.icon(
                   onPressed: _advanceProviderTour,
                   icon: Icon(
-                    isLast ? Icons.check_rounded : Icons.arrow_forward_rounded,
+                    isLast
+                        ? Icons.check_rounded
+                        : l10n.isRtl
+                            ? Icons.arrow_back_rounded
+                            : Icons.arrow_forward_rounded,
                     size: 18,
                   ),
                   label: Text(
