@@ -1569,7 +1569,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 1.h),
       child: SizedBox(
-        height: 36,
+        height: 48,
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
           padding: EdgeInsets.symmetric(horizontal: 4.w),
@@ -1676,9 +1676,10 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
               ),
               const SizedBox(height: 6),
               SizedBox(
-                height: AppTheme.chipHeight,
+                height: 48,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.symmetric(horizontal: 4.w),
                   itemCount: group.options.length,
                   itemBuilder: (context, i) {
                     final option = group.options[i];
@@ -1714,6 +1715,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                           option.label,
                           style: GoogleFonts.cairo(
                             fontSize: 12.sp,
+                            height: 1.25,
                             fontWeight: FontWeight.w600,
                             color:
                                 isSelected ? Colors.white : AppTheme.grayText,

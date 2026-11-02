@@ -166,6 +166,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with AuthGuard 
                     _buildLanguageSection(),
                     _buildSectionHeader(l10n.appearance),
                     _buildAppearanceSection(),
+                    if (AuthSession.instance.isProvider) ...[
+                      _buildSectionHeader(l10n.t('providerTourSettingsTitle')),
+                      _buildProviderTourSection(l10n),
+                    ],
                     _buildSectionHeader(l10n.notifications),
                     _buildNotificationsSection(),
                     _buildSectionHeader(l10n.paymentMethods),
@@ -234,6 +238,54 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with AuthGuard 
           letterSpacing: 0.8,
         ),
       ),
+    );
+  }
+
+  Widget _buildProviderTourSection(AppLocalizations l10n) {
+    return _buildCard(
+      children: [
+        InkWell(
+          onTap: () => context.go(
+            AppRoutes.providerDashboardScreen,
+            extra: 'replay_provider_dashboard_tour',
+          ),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppTheme.goldLight.withAlpha(90),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.play_circle_outline_rounded,
+                    color: AppTheme.goldAccent,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    l10n.t('providerTourSettingsSubtitle'),
+                    style: GoogleFonts.cairo(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.charcoal,
+                    ),
+                  ),
+                ),
+                Icon(
+                  l10n.isRtl ? Icons.chevron_left : Icons.chevron_right,
+                  color: AppTheme.grayText,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 

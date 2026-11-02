@@ -2200,11 +2200,17 @@ class VeraApiService {
   Future<Map<String, dynamic>?> loginWithGoogle({
     required String idToken,
     required String role,
+    String? documentType,
+    String? documentNumber,
   }) async {
     try {
       final res = await _dio.post(
         '/$role-auth/google',
-        data: {'idToken': idToken},
+        data: {
+          'idToken': idToken,
+          if (documentType != null) 'document_type': documentType,
+          if (documentNumber != null) 'license_number': documentNumber,
+        },
       );
       // ignore: avoid_print
       print('[loginWithGoogle] status=${res.statusCode} data=${res.data}');
@@ -2246,6 +2252,8 @@ class VeraApiService {
     required String role,
     String? nonce,
     String? name,
+    String? documentType,
+    String? documentNumber,
   }) async {
     try {
       final res = await _dio.post(
@@ -2254,6 +2262,8 @@ class VeraApiService {
           'idToken': idToken,
           if (nonce != null && nonce.isNotEmpty) 'nonce': nonce,
           if (name != null && name.isNotEmpty) 'name': name,
+          if (documentType != null) 'document_type': documentType,
+          if (documentNumber != null) 'license_number': documentNumber,
         },
       );
       // ignore: avoid_print
@@ -2294,6 +2304,8 @@ class VeraApiService {
     required String email,
     required String password,
     required String phone,
+    required String documentType,
+    required String documentNumber,
     String? businessName,
     String? category,
   }) async {
@@ -2304,6 +2316,8 @@ class VeraApiService {
         'email': email,
         'password': password,
         'phone': phone,
+        'document_type': documentType,
+        'license_number': documentNumber,
         if (businessName != null) 'business_name': businessName,
         if (category != null) 'category': category,
       },

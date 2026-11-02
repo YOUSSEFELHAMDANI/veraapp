@@ -30,6 +30,7 @@ class _ProviderRegisterScreenState extends State<ProviderRegisterScreen> {
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _businessNameController = TextEditingController();
+  final _documentNumberController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
@@ -41,6 +42,7 @@ class _ProviderRegisterScreenState extends State<ProviderRegisterScreen> {
   bool _emailAlreadyRegistered = false;
   String? _errorMessage;
   CountryCodeData _selectedCountry = CountryCodes.defaultCountry;
+  String _documentType = 'identity';
 
   static const String _webClientId = String.fromEnvironment(
     'GOOGLE_WEB_CLIENT_ID',
@@ -59,6 +61,7 @@ class _ProviderRegisterScreenState extends State<ProviderRegisterScreen> {
     _emailController.dispose();
     _phoneController.dispose();
     _businessNameController.dispose();
+    _documentNumberController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -83,6 +86,8 @@ class _ProviderRegisterScreenState extends State<ProviderRegisterScreen> {
           _selectedCountry,
           _phoneController.text.trim(),
         ),
+        documentType: _documentType,
+        documentNumber: _documentNumberController.text.trim(),
         businessName: _businessNameController.text.trim().isNotEmpty
             ? _businessNameController.text.trim()
             : null,
@@ -165,6 +170,10 @@ class _ProviderRegisterScreenState extends State<ProviderRegisterScreen> {
 
   Future<void> _handleGoogleSignIn() async {
     final l10n = AppLocalizations.of(context);
+    if (_documentNumberController.text.trim().isEmpty) {
+      setState(() => _errorMessage = l10n.t('documentNumberRequired'));
+      return;
+    }
     setState(() {
       _isGoogleLoading = true;
       _errorMessage = null;
@@ -200,6 +209,8 @@ class _ProviderRegisterScreenState extends State<ProviderRegisterScreen> {
       final result = await VeraApiService.instance.loginWithGoogle(
         idToken: googleIdToken,
         role: 'provider',
+        documentType: _documentType,
+        documentNumber: _documentNumberController.text.trim(),
       );
       if (!mounted) return;
 
@@ -250,6 +261,10 @@ class _ProviderRegisterScreenState extends State<ProviderRegisterScreen> {
 
   Future<void> _handleAppleSignIn() async {
     final l10n = AppLocalizations.of(context);
+    if (_documentNumberController.text.trim().isEmpty) {
+      setState(() => _errorMessage = l10n.t('documentNumberRequired'));
+      return;
+    }
     setState(() {
       _isAppleLoading = true;
       _errorMessage = null;
@@ -286,6 +301,8 @@ class _ProviderRegisterScreenState extends State<ProviderRegisterScreen> {
         role: 'provider',
         nonce: rawNonce,
         name: appleName.isEmpty ? null : appleName,
+        documentType: _documentType,
+        documentNumber: _documentNumberController.text.trim(),
       );
       if (!mounted) return;
 
@@ -518,6 +535,56 @@ class _ProviderRegisterScreenState extends State<ProviderRegisterScreen> {
                         hint: l10n.t('yourBusinessNameHint'),
                         prefixIcon: Icons.storefront_outlined,
                       ),
+                    ),
+                    SizedBox(height: 2.h),
+
+                    _buildLabel(l10n.t('providerDocumentType'), true),
+                    SizedBox(height: 0.8.h),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildDocumentTypeOption(
+                            value: 'identity',
+                            label: l10n.t('identityDocument'),
+                          ),
+                        ),
+                        SizedBox(width: 2.w),
+                        Expanded(
+                          child: _buildDocumentTypeOption(
+                            value: 'trade_license',
+                            label: l10n.t('tradeLicenseDocument'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 1.5.h),
+                    _buildLabel(
+                      l10n.t(_documentType == 'identity'
+                          ? 'identityNumber'
+                          : 'tradeLicenseNumber'),
+                      true,
+                    ),
+                    SizedBox(height: 0.8.h),
+                    TextFormField(
+                      controller: _documentNumberController,
+                      keyboardType: TextInputType.text,
+                      textInputAction: TextInputAction.next,
+                      style: GoogleFonts.cairo(
+                        fontSize: 13.sp,
+                        color: AppTheme.charcoal,
+                      ),
+                      decoration: _inputDecoration(
+                        hint: l10n.t(_documentType == 'identity'
+                            ? 'identityNumber'
+                            : 'tradeLicenseNumber'),
+                        prefixIcon: Icons.badge_outlined,
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return l10n.t('documentNumberRequired');
+                        }
+                        return null;
+                      },
                     ),
                     SizedBox(height: 2.h),
 
@@ -897,6 +964,51 @@ SizedBox(height: 3.h),
         fontSize: 12.sp,
         fontWeight: FontWeight.w600,
         color: AppTheme.charcoal,
+      ),
+    );
+  }
+
+  Widget _buildDocumentTypeOption({
+    required String value,
+    required String label,
+  }) {
+    final selected = _documentType == value;
+    return InkWell(
+      onTap: () => setState(() => _documentType = value),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 48),
+        padding: EdgeInsets.symmetric(horizontal: 2.w, vertical: 1.h),
+        decoration: BoxDecoration(
+          color: selected ? AppTheme.goldAccent.withAlpha(24) : AppTheme.surfaceLight,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? AppTheme.goldAccent : AppTheme.borderLight,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              selected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: selected ? AppTheme.goldAccent : AppTheme.grayText,
+              size: 18,
+            ),
+            SizedBox(width: 1.5.w),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 2,
+                style: GoogleFonts.cairo(
+                  fontSize: 10.5.sp,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: AppTheme.charcoal,
+                  height: 1.2,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

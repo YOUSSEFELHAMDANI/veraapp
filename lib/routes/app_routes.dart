@@ -617,7 +617,9 @@ final GoRouter _appRouter = GoRouter(
       path: AppRoutes.providerDashboardScreen,
       pageBuilder: (context, state) => CustomTransitionPage(
         key: state.pageKey,
-        child: const ProviderDashboardScreen(),
+        child: ProviderDashboardScreen(
+          startTourOnOpen: state.extra == 'replay_provider_dashboard_tour',
+        ),
         transitionDuration: const Duration(milliseconds: 280),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);

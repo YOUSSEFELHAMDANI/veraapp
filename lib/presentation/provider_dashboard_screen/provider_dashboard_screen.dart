@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sizer/sizer.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -11,7 +14,9 @@ import '../../services/vera_api_service.dart';
 import '../../theme/app_theme.dart';
 
 class ProviderDashboardScreen extends StatefulWidget {
-  const ProviderDashboardScreen({super.key});
+  const ProviderDashboardScreen({super.key, this.startTourOnOpen = false});
+
+  final bool startTourOnOpen;
 
   @override
   State<ProviderDashboardScreen> createState() =>
@@ -28,6 +33,24 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen>
   bool _amLoading = true;
   bool _isLoading = true;
   int _selectedTab = 0; // 0=all, 1=pending, 2=completed
+  bool _tourPreferenceLoaded = false;
+  bool _tourPending = false;
+  bool _tourWelcomeShowing = false;
+  bool _tourActive = false;
+  int _tourStepIndex = 0;
+  String? _tourDonePreferenceKey;
+  Rect? _tourTargetRect;
+
+  final GlobalKey _tourLayerKey = GlobalKey();
+  final GlobalKey _tourProfileActionKey = GlobalKey();
+  final GlobalKey _tourCatalogActionKey = GlobalKey();
+  final GlobalKey _tourProductActionKey = GlobalKey();
+  final GlobalKey _tourServiceActionKey = GlobalKey();
+  final GlobalKey _tourExcelActionKey = GlobalKey();
+  final GlobalKey _tourOrdersActionKey = GlobalKey();
+  final GlobalKey _tourAdsActionKey = GlobalKey();
+  final GlobalKey _tourPlansActionKey = GlobalKey();
+  final GlobalKey _tourWalletKey = GlobalKey();
 
   @override
   void initState() {
@@ -60,6 +83,355 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen>
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
+    if (mounted) await _prepareProviderTour();
+  }
+
+  Future<void> _prepareProviderTour() async {
+    if (_tourPreferenceLoaded) return;
+    final prefs = await SharedPreferences.getInstance();
+    final accountId = _profile?.id.trim();
+    _tourDonePreferenceKey = accountId != null && accountId.isNotEmpty
+        ? 'provider_dashboard_tour_done_$accountId'
+        : 'provider_dashboard_tour_done';
+    _tourPending = widget.startTourOnOpen ||
+        !(prefs.getBool(_tourDonePreferenceKey!) ?? false);
+    _tourPreferenceLoaded = true;
+    _maybeShowTourWelcome();
+  }
+
+  void _maybeShowTourWelcome() {
+    if (!mounted ||
+        !_tourPreferenceLoaded ||
+        !_tourPending ||
+        _isLoading ||
+        _tourWelcomeShowing) {
+      return;
+    }
+    _tourWelcomeShowing = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
+      final startTour = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          scrollable: true,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          icon: Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: AppTheme.goldLight.withAlpha(90),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.storefront_rounded,
+              color: AppTheme.goldAccent,
+              size: 30,
+            ),
+          ),
+          title: Text(
+            l10n.t('providerTourWelcomeTitle'),
+            textAlign: TextAlign.center,
+            style: GoogleFonts.cairo(fontWeight: FontWeight.w800),
+          ),
+          content: Text(
+            l10n.t('providerTourWelcomeBody'),
+            textAlign: TextAlign.center,
+            style: GoogleFonts.cairo(color: AppTheme.grayText),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ElevatedButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.goldAccent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: Text(
+                    l10n.t('providerTourStart'),
+                    style: GoogleFonts.cairo(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: Text(
+                    l10n.t('providerTourSkipNow'),
+                    style: GoogleFonts.cairo(color: AppTheme.grayText),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+      _tourWelcomeShowing = false;
+      _tourPending = false;
+      if (!mounted) return;
+      if (startTour == true) {
+        setState(() {
+          _tourActive = true;
+          _tourStepIndex = 0;
+        });
+        await _focusTourStep(0);
+      } else {
+        await _finishProviderTour();
+      }
+    });
+  }
+
+  List<_ProviderTourStep> _providerTourSteps(AppLocalizations l10n) => [
+        _ProviderTourStep(
+          targetKey: _tourProfileActionKey,
+          title: l10n.t('providerTourProfileTitle'),
+          description: l10n.t('providerTourProfileBody'),
+        ),
+        _ProviderTourStep(
+          targetKey: _tourCatalogActionKey,
+          title: l10n.t('providerTourCategoryTitle'),
+          description: l10n.t('providerTourCategoryBody'),
+        ),
+        _ProviderTourStep(
+          targetKey: _tourProductActionKey,
+          title: l10n.t('providerTourProductsTitle'),
+          description: l10n.t('providerTourProductsBody'),
+        ),
+        _ProviderTourStep(
+          targetKey: _tourServiceActionKey,
+          title: l10n.t('providerTourServicesTitle'),
+          description: l10n.t('providerTourServicesBody'),
+        ),
+        _ProviderTourStep(
+          targetKey: _tourExcelActionKey,
+          title: l10n.t('providerTourExcelTitle'),
+          description: l10n.t('providerTourExcelBody'),
+        ),
+        _ProviderTourStep(
+          targetKey: _tourOrdersActionKey,
+          title: l10n.t('providerTourOrdersTitle'),
+          description: l10n.t('providerTourOrdersBody'),
+        ),
+        _ProviderTourStep(
+          targetKey: _tourProductActionKey,
+          title: l10n.t('providerTourShippingTitle'),
+          description: l10n.t('providerTourShippingBody'),
+        ),
+        _ProviderTourStep(
+          targetKey: _tourAdsActionKey,
+          title: l10n.t('providerTourAdsTitle'),
+          description: l10n.t('providerTourAdsBody'),
+        ),
+        _ProviderTourStep(
+          targetKey: _tourWalletKey,
+          title: l10n.t('providerTourMoneyTitle'),
+          description: l10n.t('providerTourMoneyBody'),
+        ),
+        _ProviderTourStep(
+          targetKey: _tourPlansActionKey,
+          title: l10n.t('providerTourPlansTitle'),
+          description: l10n.t('providerTourPlansBody'),
+        ),
+      ];
+
+  Future<void> _focusTourStep(int index) async {
+    final steps = _providerTourSteps(AppLocalizations.of(context));
+    if (index < 0 || index >= steps.length) return;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    final targetContext = steps[index].targetKey.currentContext;
+    if (targetContext != null && targetContext.mounted) {
+      try {
+        await Scrollable.ensureVisible(
+          targetContext,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeInOutCubic,
+          alignment: 0.28,
+        );
+      } catch (_) {}
+    }
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || (targetContext != null && !targetContext.mounted)) return;
+    final targetBox = targetContext?.findRenderObject() as RenderBox?;
+    final layerBox = _tourLayerKey.currentContext?.findRenderObject() as RenderBox?;
+    if (targetBox == null ||
+        layerBox == null ||
+        !targetBox.hasSize ||
+        !layerBox.hasSize) {
+      setState(() => _tourTargetRect = null);
+      return;
+    }
+    final globalTopLeft = targetBox.localToGlobal(Offset.zero);
+    final globalBottomRight =
+        targetBox.localToGlobal(targetBox.size.bottomRight(Offset.zero));
+    final localRect = Rect.fromPoints(
+      layerBox.globalToLocal(globalTopLeft),
+      layerBox.globalToLocal(globalBottomRight),
+    ).inflate(8);
+    final viewport = Offset.zero & layerBox.size;
+    setState(() => _tourTargetRect = localRect.intersect(viewport));
+  }
+
+  Future<void> _advanceProviderTour() async {
+    final steps = _providerTourSteps(AppLocalizations.of(context));
+    if (_tourStepIndex >= steps.length - 1) {
+      await _finishProviderTour();
+      return;
+    }
+    final nextIndex = _tourStepIndex + 1;
+    setState(() => _tourStepIndex = nextIndex);
+    await _focusTourStep(nextIndex);
+  }
+
+  Future<void> _finishProviderTour() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(
+      _tourDonePreferenceKey ?? 'provider_dashboard_tour_done',
+      true,
+    );
+    if (!mounted) return;
+    setState(() {
+      _tourActive = false;
+      _tourTargetRect = null;
+      _tourPending = false;
+    });
+  }
+
+  Widget _buildProviderTourOverlay() {
+    final l10n = AppLocalizations.of(context);
+    final steps = _providerTourSteps(l10n);
+    if (steps.isEmpty) return const SizedBox.shrink();
+    final step = steps[_tourStepIndex.clamp(0, steps.length - 1)];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewport = Offset.zero &
+            Size(constraints.maxWidth, constraints.maxHeight);
+        final target = _tourTargetRect ??
+            Rect.fromCenter(center: viewport.center, width: 1, height: 1);
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {},
+                child: CustomPaint(
+                  painter: _ProviderTourScrimPainter(targetRect: target),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: CustomSingleChildLayout(
+                delegate: _ProviderTourCardLayoutDelegate(targetRect: target),
+                child: SizedBox(
+                  width: math.min(constraints.maxWidth - 32, 480),
+                  child: _buildProviderTourCard(l10n, step, steps.length),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildProviderTourCard(
+    AppLocalizations l10n,
+    _ProviderTourStep step,
+    int totalSteps,
+  ) {
+    final isLast = _tourStepIndex == totalSteps - 1;
+    return Material(
+      color: AppTheme.surfaceLight,
+      elevation: 16,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: EdgeInsets.all(4.w),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  l10n.t(
+                    'providerTourStepCount',
+                    args: {
+                      'current': '${_tourStepIndex + 1}',
+                      'total': '$totalSteps',
+                    },
+                  ),
+                  style: GoogleFonts.cairo(
+                    fontSize: 10.sp,
+                    color: AppTheme.grayText,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Icon(
+                  Icons.lightbulb_outline_rounded,
+                  color: AppTheme.goldAccent,
+                  size: 20,
+                ),
+              ],
+            ),
+            SizedBox(height: 0.8.h),
+            Text(
+              step.title,
+              style: GoogleFonts.cairo(
+                fontSize: 14.sp,
+                color: AppTheme.charcoal,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            SizedBox(height: 0.5.h),
+            Text(
+              step.description,
+              style: GoogleFonts.cairo(
+                fontSize: 11.sp,
+                color: AppTheme.grayText,
+                height: 1.45,
+              ),
+            ),
+            SizedBox(height: 1.5.h),
+            Row(
+              children: [
+                TextButton(
+                  onPressed: _finishProviderTour,
+                  child: Text(
+                    l10n.t('providerTourSkip'),
+                    style: GoogleFonts.cairo(color: AppTheme.grayText),
+                  ),
+                ),
+                const Spacer(),
+                ElevatedButton.icon(
+                  onPressed: _advanceProviderTour,
+                  icon: Icon(
+                    isLast ? Icons.check_rounded : Icons.arrow_forward_rounded,
+                    size: 18,
+                  ),
+                  label: Text(
+                    l10n.t(isLast ? 'providerTourFinish' : 'providerTourNext'),
+                    style: GoogleFonts.cairo(fontWeight: FontWeight.w700),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.goldAccent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   List<VeraOrder> get _filteredOrders {
@@ -80,20 +452,29 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen>
     return Scaffold(
       backgroundColor: AppTheme.backgroundLight,
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _loadData,
-          color: AppTheme.goldAccent,
-          child: CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(child: _buildHeader(l10n)),
-              SliverToBoxAdapter(child: _buildStatsGrid(l10n)),
-              SliverToBoxAdapter(child: _buildEarningsCard(l10n)),
-              SliverToBoxAdapter(child: _buildAccountManagerCard(l10n)),
-              SliverToBoxAdapter(child: _buildQuickActions(l10n)),
-              SliverToBoxAdapter(child: _buildOrdersSection(l10n)),
-              const SliverToBoxAdapter(child: SizedBox(height: 20)),
-            ],
-          ),
+        child: Stack(
+          key: _tourLayerKey,
+          children: [
+            Positioned.fill(
+              child: RefreshIndicator(
+                onRefresh: _loadData,
+                color: AppTheme.goldAccent,
+                child: CustomScrollView(
+                  slivers: [
+                    SliverToBoxAdapter(child: _buildHeader(l10n)),
+                    SliverToBoxAdapter(child: _buildStatsGrid(l10n)),
+                    SliverToBoxAdapter(child: _buildEarningsCard(l10n)),
+                    SliverToBoxAdapter(child: _buildAccountManagerCard(l10n)),
+                    SliverToBoxAdapter(child: _buildQuickActions(l10n)),
+                    SliverToBoxAdapter(child: _buildOrdersSection(l10n)),
+                    const SliverToBoxAdapter(child: SizedBox(height: 20)),
+                  ],
+                ),
+              ),
+            ),
+            if (_tourActive)
+              Positioned.fill(child: _buildProviderTourOverlay()),
+          ],
         ),
       ),
     );
@@ -257,13 +638,23 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen>
         crossAxisSpacing: 3.w,
         mainAxisSpacing: 2.h,
         childAspectRatio: 1.6,
-        children: stats.map((s) => _buildStatCard(s)).toList(),
+        children: stats
+            .asMap()
+            .entries
+            .map(
+              (entry) => _buildStatCard(
+                entry.value,
+                key: entry.key == 3 ? _tourWalletKey : null,
+              ),
+            )
+            .toList(),
       ),
     );
   }
 
-  Widget _buildStatCard(_StatItem stat) {
+  Widget _buildStatCard(_StatItem stat, {Key? key}) {
     return Container(
+      key: key,
       padding: EdgeInsets.all(3.w),
       decoration: BoxDecoration(
         color: AppTheme.surfaceLight,
@@ -636,21 +1027,25 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen>
         label: l10n.t('addProduct'),
         icon: Icons.shopping_bag_outlined,
         route: AppRoutes.providerProductWizardScreen,
+        key: _tourProductActionKey,
       ),
       _QuickAction(
         label: l10n.addService,
         icon: Icons.design_services_outlined,
         route: AppRoutes.providerServiceWizardScreen,
+        key: _tourServiceActionKey,
       ),
       _QuickAction(
         label: l10n.t('importExcelCsv'),
         icon: Icons.upload_file_outlined,
         route: AppRoutes.providerImportScreen,
+        key: _tourExcelActionKey,
       ),
       _QuickAction(
         label: l10n.t('myCatalog'),
         icon: Icons.inventory_2_outlined,
         route: AppRoutes.providerCatalogScreen,
+        key: _tourCatalogActionKey,
       ),
       _QuickAction(
         label: l10n.t('myServices'),
@@ -661,21 +1056,25 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen>
         label: l10n.orders,
         icon: Icons.receipt_long_outlined,
         route: AppRoutes.providerOrdersScreen,
+        key: _tourOrdersActionKey,
       ),
       _QuickAction(
         label: l10n.profile,
         icon: Icons.person_outline_rounded,
         route: AppRoutes.providerProfileScreen,
+        key: _tourProfileActionKey,
       ),
       _QuickAction(
         label: l10n.t('adPlans'),
         icon: Icons.campaign_outlined,
         route: AppRoutes.providerSubscriptionsScreen,
+        key: _tourAdsActionKey,
       ),
       _QuickAction(
         label: l10n.t('myPlan'),
         icon: Icons.layers_outlined,
         route: AppRoutes.providerPlansScreen,
+        key: _tourPlansActionKey,
       ),
     ];
     return Padding(
@@ -702,6 +1101,7 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen>
                         (MediaQuery.of(context).size.width - 8.w * 2 - 8 * 3) /
                         4,
                     child: GestureDetector(
+                      key: a.key,
                       onTap: () => context.push(a.route),
                       child: Container(
                         padding: EdgeInsets.symmetric(vertical: 1.5.h),
@@ -952,9 +1352,96 @@ class _QuickAction {
   final String label;
   final IconData icon;
   final String route;
+  final Key? key;
   const _QuickAction({
     required this.label,
     required this.icon,
     required this.route,
+    this.key,
   });
+}
+
+class _ProviderTourStep {
+  final GlobalKey targetKey;
+  final String title;
+  final String description;
+
+  const _ProviderTourStep({
+    required this.targetKey,
+    required this.title,
+    required this.description,
+  });
+}
+
+class _ProviderTourCardLayoutDelegate extends SingleChildLayoutDelegate {
+  final Rect targetRect;
+
+  const _ProviderTourCardLayoutDelegate({required this.targetRect});
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      BoxConstraints(
+        maxWidth: math.min(constraints.maxWidth - 32, 480),
+        maxHeight: constraints.maxHeight - 24,
+      );
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    final left = (targetRect.center.dx - childSize.width / 2)
+        .clamp(16.0, size.width - childSize.width - 16.0)
+        .toDouble();
+    final below = targetRect.bottom + 12;
+    final above = targetRect.top - childSize.height - 12;
+    final top = below + childSize.height <= size.height - 12
+        ? below
+        : above >= 12
+            ? above
+            : ((size.height - childSize.height) / 2).clamp(12.0, size.height - childSize.height - 12).toDouble();
+    return Offset(left, top);
+  }
+
+  @override
+  bool shouldRelayout(covariant _ProviderTourCardLayoutDelegate oldDelegate) =>
+      oldDelegate.targetRect != targetRect;
+}
+
+class _ProviderTourScrimPainter extends CustomPainter {
+  final Rect targetRect;
+
+  const _ProviderTourScrimPainter({required this.targetRect});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final spotlight = RRect.fromRectAndRadius(
+      targetRect,
+      const Radius.circular(16),
+    );
+    final scrim = Path()
+      ..fillType = PathFillType.evenOdd
+      ..addRect(Offset.zero & size)
+      ..addRRect(spotlight);
+    canvas.drawPath(
+      scrim,
+      Paint()..color = Colors.black.withAlpha(205),
+    );
+    canvas.drawRRect(
+      spotlight,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = AppTheme.goldAccent,
+    );
+    canvas.drawRRect(
+      spotlight,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 7
+        ..color = AppTheme.goldAccent.withAlpha(45)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ProviderTourScrimPainter oldDelegate) =>
+      oldDelegate.targetRect != targetRect;
 }
