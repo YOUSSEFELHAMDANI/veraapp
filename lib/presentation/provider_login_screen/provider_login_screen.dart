@@ -11,6 +11,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_localizations.dart';
+import '../../core/provider_dashboard_tour_state.dart';
 import '../../routes/app_routes.dart';
 import '../../services/vera_api_service.dart';
 import '../../theme/app_theme.dart';
@@ -67,6 +68,9 @@ class _ProviderLoginScreenState extends State<ProviderLoginScreen> {
         // Email-OTP gate enabled on the server: password was validated and a
         // one-time code was emailed — no session token yet.
         if (result['otp_required'] == true) {
+          final startTour = await ProviderDashboardTourState.isPendingForEmail(
+            _emailController.text.trim(),
+          );
           if (mounted) {
             context.push(
               AppRoutes.otpScreen,
@@ -79,6 +83,7 @@ class _ProviderLoginScreenState extends State<ProviderLoginScreen> {
                     l10n.t('enterCodeSentTo', args: {'email': _emailController.text.trim()}),
                 'expiresInSeconds': result['expiresInSeconds'],
                 'resendCooldownSeconds': result['resendCooldownSeconds'],
+                'startProviderTour': startTour,
               },
             );
           }
@@ -91,10 +96,18 @@ class _ProviderLoginScreenState extends State<ProviderLoginScreen> {
             result['data']?['token'] ??
             result['data']?['access_token'];
         if (token != null && token.toString().isNotEmpty) {
+          final startTour = await ProviderDashboardTourState.consumePendingForEmail(
+            _emailController.text,
+          );
           await VeraApiService.instance.setProviderToken(token.toString());
           await VeraApiService.instance.setOnboardingDone();
           if (mounted) {
-            context.go(AppRoutes.providerDashboardScreen);
+            context.go(
+              AppRoutes.providerDashboardScreen,
+              extra: startTour
+                  ? ProviderDashboardTourState.replayRouteExtra
+                  : null,
+            );
           }
         } else {
           setState(

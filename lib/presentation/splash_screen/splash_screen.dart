@@ -23,7 +23,7 @@ class _SplashScreenState extends State<SplashScreen> {
     await Future.delayed(const Duration(milliseconds: 2000));
     final service = VeraApiService.instance;
     try {
-      await service.ensureBooted();
+      await service.ensureBooted().timeout(const Duration(seconds: 8));
       final session = AuthSession.instance;
       if (!mounted) return;
 
@@ -32,7 +32,9 @@ class _SplashScreenState extends State<SplashScreen> {
       // cleared immediately — the app never trusts locally cached tokens.
       final hadProvider = service.isProviderAuthenticated;
       final providerValid = hadProvider
-          ? await session.validateProviderOnStartup()
+          ? await session
+                .validateProviderOnStartup()
+                .timeout(const Duration(seconds: 8), onTimeout: () => true)
           : false;
       if (hadProvider && !providerValid) {
         await service.clearProviderToken();
@@ -40,7 +42,9 @@ class _SplashScreenState extends State<SplashScreen> {
 
       final hadBuyer = service.isAuthenticated;
       final buyerValid = hadBuyer
-          ? await session.validateBuyerOnStartup()
+          ? await session
+                .validateBuyerOnStartup()
+                .timeout(const Duration(seconds: 8), onTimeout: () => true)
           : false;
       if (hadBuyer && !buyerValid) {
         await service.clearToken();
@@ -77,10 +81,17 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF1C1C1E),
       body: SizedBox.expand(
         child: Image.asset(
           'assets/images/Green_Modern_Food_Delivery_Order_Mobile_Design__1_-1785624074273.png',
           fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => const ColoredBox(
+            color: Color(0xFF1C1C1E),
+            child: Center(
+              child: CircularProgressIndicator(color: Color(0xFFC8A96A)),
+            ),
+          ),
           semanticLabel:
               AppLocalizations.of(context).t('splashBackgroundLabel'),
         ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -54,7 +56,7 @@ Future<void> _showForegroundNotification(RemoteMessage message) async {
   );
 }
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Surface every uncaught error instead of silently aborting startup and
@@ -70,73 +72,6 @@ void main() async {
     debugPrint('🔴 Uncaught platform error: $error\n$stack');
     return true;
   };
-
-  // 🚨 CRITICAL: Everything before runApp() is best-effort. On iOS a missing
-  // APNs entitlement makes FirebaseMessaging.getToken() (and other plugin
-  // calls) throw; any unhandled error here used to prevent runApp() from ever
-  // running → the app stayed white. Each block is now isolated so a single
-  // failure can never stop the UI from launching.
-  var firebaseReady = false;
-  try {
-    await Firebase.initializeApp();
-    firebaseReady = true;
-  } catch (e, s) {
-    debugPrint('🔴 Firebase.initializeApp failed: $e\n$s');
-  }
-
-  if (!kIsWeb && firebaseReady) {
-    try {
-      FirebaseMessaging.onBackgroundMessage(
-        _firebaseMessagingBackgroundHandler,
-      );
-
-      const initialization = InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-      );
-      await _localNotifications.initialize(initialization);
-      await _localNotifications
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >()
-          ?.createNotificationChannel(_notificationChannel);
-      FirebaseMessaging.onMessage.listen(_showForegroundNotification);
-
-      final messaging = FirebaseMessaging.instance;
-      final settings = await messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-        try {
-          final token = await messaging.getToken();
-          debugPrint('FCM Token: $token');
-          if (token != null && token.isNotEmpty) {
-            VeraApiService.instance.cacheFcmToken(token);
-            await VeraApiService.instance.registerPushToken(token);
-          }
-        } catch (e, s) {
-          debugPrint('🔴 FCM getToken failed: $e\n$s');
-        }
-      }
-      messaging.onTokenRefresh.listen(
-        (token) => VeraApiService.instance.registerPushToken(token),
-      );
-    } catch (e, s) {
-      debugPrint('🔴 Messaging/notifications init failed: $e\n$s');
-    }
-  }
-
-  try {
-    await ThemeController.instance.init();
-  } catch (e, s) {
-    debugPrint('🔴 ThemeController.init failed: $e\n$s');
-  }
-  try {
-    await UserInterestTracker.instance.init();
-  } catch (e, s) {
-    debugPrint('🔴 UserInterestTracker.init failed: $e\n$s');
-  }
 
   bool hasShownError = false;
 
@@ -159,32 +94,113 @@ void main() async {
 
   GoRouter.optionURLReflectsImperativeAPIs = true;
 
-  // 🚨 CRITICAL: Device orientation lock - DO NOT REMOVE
-  // Skipped on web — SystemChrome orientation lock is a no-op on Flutter Web
-  if (!kIsWeb) {
-    try {
-      await SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-      ]);
-    } catch (e) {
-      debugPrint('🔴 Orientation lock failed: $e');
-    }
-  }
-
-  if (!kIsWeb) {
-    try {
-      _setupDeepLinks();
-    } catch (e, s) {
-      debugPrint('🔴 Deep link setup failed: $e\n$s');
-    }
-  }
-
   // Global provider container: bound to AuthSession so a logout / token expiry
   // can purge every cached authenticated object (user, cart, ...).
   final container = ProviderContainer();
   AuthSession.instance.bind(container);
 
+  // Start Firebase setup without waiting for platform channels or permission
+  // dialogs. The splash screen must get a Flutter frame even if an iOS plugin
+  // is slow or unavailable.
+  final firebaseReady = _initializeFirebaseCore();
   runApp(UncontrolledProviderScope(container: container, child: const MyApp()));
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!kIsWeb) {
+      unawaited(_lockPortraitOrientation());
+      try {
+        _setupDeepLinks();
+      } catch (e, s) {
+        debugPrint('🔴 Deep link setup failed: $e\n$s');
+      }
+    }
+    unawaited(_initializeTheme());
+    unawaited(_initializeUserInterests());
+    unawaited(_initializeFirebaseMessaging(firebaseReady));
+  });
+}
+
+Future<bool> _initializeFirebaseCore() async {
+  try {
+    await Firebase.initializeApp().timeout(const Duration(seconds: 12));
+    return true;
+  } catch (e, s) {
+    debugPrint('🔴 Firebase.initializeApp failed: $e\n$s');
+    return false;
+  }
+}
+
+Future<void> _initializeFirebaseMessaging(Future<bool> firebaseReady) async {
+  if (kIsWeb || !await firebaseReady) return;
+  try {
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    const initialization = InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+    );
+    await _localNotifications
+        .initialize(initialization)
+        .timeout(const Duration(seconds: 8));
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.createNotificationChannel(_notificationChannel);
+    }
+    FirebaseMessaging.onMessage.listen(_showForegroundNotification);
+
+    final messaging = FirebaseMessaging.instance;
+    final settings = await messaging
+        .requestPermission(alert: true, badge: true, sound: true)
+        .timeout(const Duration(seconds: 12));
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      try {
+        final token = await messaging.getToken().timeout(
+          const Duration(seconds: 8),
+        );
+        if (token != null && token.isNotEmpty) {
+          VeraApiService.instance.cacheFcmToken(token);
+          unawaited(VeraApiService.instance.registerPushToken(token));
+        }
+      } catch (e, s) {
+        debugPrint('🔴 FCM getToken failed: $e\n$s');
+      }
+    }
+    messaging.onTokenRefresh.listen(
+      (token) => unawaited(VeraApiService.instance.registerPushToken(token)),
+    );
+  } catch (e, s) {
+    debugPrint('🔴 Messaging/notifications init failed: $e\n$s');
+  }
+}
+
+Future<void> _initializeTheme() async {
+  try {
+    await ThemeController.instance.init().timeout(const Duration(seconds: 8));
+  } catch (e, s) {
+    debugPrint('🔴 ThemeController.init failed: $e\n$s');
+  }
+}
+
+Future<void> _initializeUserInterests() async {
+  try {
+    await UserInterestTracker.instance.init().timeout(
+      const Duration(seconds: 8),
+    );
+  } catch (e, s) {
+    debugPrint('🔴 UserInterestTracker.init failed: $e\n$s');
+  }
+}
+
+Future<void> _lockPortraitOrientation() async {
+  try {
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]).timeout(const Duration(seconds: 4));
+  } catch (e) {
+    debugPrint('🔴 Orientation lock failed: $e');
+  }
 }
 
 void _setupDeepLinks() {

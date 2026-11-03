@@ -89,12 +89,24 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen>
   Future<void> _prepareProviderTour() async {
     if (_tourPreferenceLoaded) return;
     final prefs = await SharedPreferences.getInstance();
+    final accountEmail = _profile?.email.trim().toLowerCase();
     final accountId = _profile?.id.trim();
-    _tourDonePreferenceKey = accountId != null && accountId.isNotEmpty
+    final emailKey = accountEmail != null && accountEmail.isNotEmpty
+        ? 'provider_dashboard_tour_done_email_$accountEmail'
+        : null;
+    final idKey = accountId != null && accountId.isNotEmpty
         ? 'provider_dashboard_tour_done_$accountId'
-        : 'provider_dashboard_tour_done';
-    _tourPending = widget.startTourOnOpen ||
-        !(prefs.getBool(_tourDonePreferenceKey!) ?? false);
+        : null;
+    _tourDonePreferenceKey = emailKey ?? idKey ?? 'provider_dashboard_tour_done';
+    final wasCompleted = [
+      if (emailKey != null) prefs.getBool(emailKey),
+      if (idKey != null) prefs.getBool(idKey),
+      prefs.getBool('provider_dashboard_tour_done'),
+    ].any((value) => value == true);
+    if (emailKey != null && wasCompleted) {
+      await prefs.setBool(emailKey, true);
+    }
+    _tourPending = widget.startTourOnOpen || !wasCompleted;
     _tourPreferenceLoaded = true;
     _maybeShowTourWelcome();
   }

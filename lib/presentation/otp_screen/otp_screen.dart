@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_localizations.dart';
+import '../../core/provider_dashboard_tour_state.dart';
 import '../../routes/app_routes.dart';
 import '../../services/vera_api_service.dart';
 import '../../theme/app_theme.dart';
@@ -249,6 +250,8 @@ class _OtpScreenState extends State<OtpScreen> {
 
       // ── register_provider: activated, but pending admin approval — no session.
       if (_purpose == 'register_provider') {
+        await ProviderDashboardTourState.markPendingForEmail(_email);
+        if (!mounted) return;
         setState(() => _verifying = false);
         _showProviderApprovalDialog();
         return;
@@ -259,7 +262,18 @@ class _OtpScreenState extends State<OtpScreen> {
       await VeraApiService.instance.setOnboardingDone();
       if (!mounted) return;
       if (_purpose.endsWith('provider')) {
-        context.go(AppRoutes.providerDashboardScreen);
+        final startTour = _purpose == 'login_provider' &&
+            widget.args['startProviderTour'] == true;
+        if (startTour) {
+          await ProviderDashboardTourState.consumePendingForEmail(_email);
+          if (!mounted) return;
+        }
+        context.go(
+          AppRoutes.providerDashboardScreen,
+          extra: startTour
+              ? ProviderDashboardTourState.replayRouteExtra
+              : null,
+        );
       } else {
         context.go(AppRoutes.homeScreen);
       }
