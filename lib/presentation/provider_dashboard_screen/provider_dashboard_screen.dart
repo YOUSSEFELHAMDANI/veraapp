@@ -333,6 +333,20 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen>
                 ),
               ),
             ),
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 8,
+              child: SafeArea(
+                top: false,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    child: _buildProviderTourActions(l10n, steps.length),
+                  ),
+                ),
+              ),
+            ),
           ],
         );
       },
@@ -344,7 +358,6 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen>
     _ProviderTourStep step,
     int totalSteps,
   ) {
-    final isLast = _tourStepIndex == totalSteps - 1;
     return Material(
       color: AppTheme.surfaceLight,
       elevation: 16,
@@ -397,40 +410,54 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen>
                 height: 1.45,
               ),
             ),
-            SizedBox(height: 1.5.h),
-            Row(
-              children: [
-                TextButton(
-                  onPressed: _finishProviderTour,
-                  child: Text(
-                    l10n.t('providerTourSkip'),
-                    style: GoogleFonts.cairo(color: AppTheme.grayText),
-                  ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProviderTourActions(AppLocalizations l10n, int totalSteps) {
+    final isLast = _tourStepIndex == totalSteps - 1;
+    return Material(
+      color: AppTheme.surfaceLight,
+      elevation: 18,
+      borderRadius: BorderRadius.circular(18),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 3.w, vertical: 1.h),
+        child: Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            TextButton(
+              onPressed: _finishProviderTour,
+              child: Text(
+                l10n.t('providerTourSkip'),
+                style: GoogleFonts.cairo(color: AppTheme.grayText),
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: _advanceProviderTour,
+              icon: Icon(
+                isLast
+                    ? Icons.check_rounded
+                    : l10n.isRtl
+                        ? Icons.arrow_back_rounded
+                        : Icons.arrow_forward_rounded,
+                size: 18,
+              ),
+              label: Text(
+                l10n.t(isLast ? 'providerTourFinish' : 'providerTourNext'),
+                style: GoogleFonts.cairo(fontWeight: FontWeight.w700),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.goldAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const Spacer(),
-                ElevatedButton.icon(
-                  onPressed: _advanceProviderTour,
-                  icon: Icon(
-                    isLast
-                        ? Icons.check_rounded
-                        : l10n.isRtl
-                            ? Icons.arrow_back_rounded
-                            : Icons.arrow_forward_rounded,
-                    size: 18,
-                  ),
-                  label: Text(
-                    l10n.t(isLast ? 'providerTourFinish' : 'providerTourNext'),
-                    style: GoogleFonts.cairo(fontWeight: FontWeight.w700),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.goldAccent,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ],
         ),
@@ -1386,7 +1413,7 @@ class _ProviderTourCardLayoutDelegate extends SingleChildLayoutDelegate {
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
       BoxConstraints(
         maxWidth: math.min(constraints.maxWidth - 32, 480),
-        maxHeight: constraints.maxHeight - 24,
+        maxHeight: math.max(0, constraints.maxHeight - 112),
       );
 
   @override
@@ -1396,11 +1423,14 @@ class _ProviderTourCardLayoutDelegate extends SingleChildLayoutDelegate {
         .toDouble();
     final below = targetRect.bottom + 12;
     final above = targetRect.top - childSize.height - 12;
-    final top = below + childSize.height <= size.height - 12
+    final contentBottom = size.height - 100;
+    final top = below + childSize.height <= contentBottom
         ? below
         : above >= 12
             ? above
-            : ((size.height - childSize.height) / 2).clamp(12.0, size.height - childSize.height - 12).toDouble();
+            : ((contentBottom - childSize.height) / 2)
+                .clamp(12.0, contentBottom - childSize.height)
+                .toDouble();
     return Offset(left, top);
   }
 
