@@ -98,11 +98,12 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen>
         ? 'provider_dashboard_tour_done_$accountId'
         : null;
     _tourDonePreferenceKey = emailKey ?? idKey ?? 'provider_dashboard_tour_done';
-    final wasCompleted = [
-      if (emailKey != null) prefs.getBool(emailKey),
-      if (idKey != null) prefs.getBool(idKey),
-      prefs.getBool('provider_dashboard_tour_done'),
-    ].any((value) => value == true);
+    final wasCompleted =
+        (emailKey != null && prefs.getBool(emailKey) == true) ||
+        (idKey != null && prefs.getBool(idKey) == true) ||
+        (emailKey == null &&
+            idKey == null &&
+            prefs.getBool('provider_dashboard_tour_done') == true);
     if (emailKey != null && wasCompleted) {
       await prefs.setBool(emailKey, true);
     }

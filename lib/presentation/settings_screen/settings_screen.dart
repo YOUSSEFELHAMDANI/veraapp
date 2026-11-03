@@ -4,7 +4,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_export.dart';
 import '../../core/app_localizations.dart';
-import '../../core/auth_gate.dart';
 import '../../core/auth_session.dart';
 import '../../core/locale_provider.dart';
 import '../../core/theme_controller.dart';
@@ -18,7 +17,9 @@ class SettingsScreen extends ConsumerStatefulWidget {
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends ConsumerState<SettingsScreen> with AuthGuard {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  bool _authReady = false;
+  bool _isProviderSettings = false;
   // Notification toggles
   bool _pushNotifications = true;
   bool _emailNotifications = true;
@@ -45,8 +46,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with AuthGuard 
   @override
   void initState() {
     super.initState();
+    _restoreAnyAccountSession();
     _loadPreferences();
     _loadPaymentMethods();
+  }
+
+  Future<void> _restoreAnyAccountSession() async {
+    final api = VeraApiService.instance;
+    final isProvider = await api.ensureProviderAuthenticated();
+    final isBuyer = isProvider ? false : await api.ensureAuthenticated();
+    if (!mounted) return;
+    if (!isProvider && !isBuyer) {
+      context.go(AppRoutes.loginScreen);
+      return;
+    }
+    setState(() {
+      _isProviderSettings = isProvider;
+      _authReady = true;
+    });
   }
 
   Future<void> _loadPreferences() async {
@@ -144,7 +161,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with AuthGuard 
 
   @override
   Widget build(BuildContext context) {
-    return authPlaceholder(_buildGuardedContent(context));
+    if (!_authReady) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(
+          child: CircularProgressIndicator(color: AppTheme.goldAccent),
+        ),
+      );
+    }
+    return _buildGuardedContent(context);
   }
 
   Widget _buildGuardedContent(BuildContext context) {
@@ -166,7 +191,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with AuthGuard 
                     _buildLanguageSection(),
                     _buildSectionHeader(l10n.appearance),
                     _buildAppearanceSection(),
-                    if (AuthSession.instance.isProvider) ...[
+                    if (_isProviderSettings) ...[
                       _buildSectionHeader(l10n.t('providerTourSettingsTitle')),
                       _buildProviderTourSection(l10n),
                     ],
